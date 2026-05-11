@@ -5,16 +5,16 @@
  * =====================================================================
  *
  * This file handles game entity logic:
- * - Collision detection with game-specific entities:
+ * - Interactions with game-specific items:
  *     - Players touching pickups.
  *     - Actors using teleporters or jump pads.
+ *     - Pickup/use effects.
  * - Trigger event handling and activation.
- * - Pickup/use effects.
- * - Rendering and preloading the entity models.
  * - Communication with the server:
  *     - Reporting available pickups.
  *     - Sending information about clients attempting pickups.
  *     - Tracking spawn states and timers for pickups.
+ * - Rendering and preloading the entity models.
  * - Other game-specific entity behaviours.
  *
  * =====================================================================
