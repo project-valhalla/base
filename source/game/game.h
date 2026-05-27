@@ -40,8 +40,8 @@ static const char * const animnames[] =
     "pain",
     "edit", "lag", "taunt", "win", "lose",
     "gun idle", "gun primary", "gun secondary", "gun melee","gun throw", "gun switch", "gun taunt",
-    "vwep idle", "vwep shoot", "vwep melee", "vwep throw"
-    "trigger",
+    "vwep idle", "vwep shoot", "vwep melee", "vwep throw",
+    "trigger"
 };
 
 // network quantization scale
