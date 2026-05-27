@@ -1791,7 +1791,7 @@ template<class MDL> struct skelcommands : modelcommands<MDL, struct MDL::skelmes
 
         vector<int> anims;
         game::findanims(anim, anims);
-        if(anims.empty()) conoutf(CON_ERROR, "could not find animation %s", anim);
+        if(anims.empty()) conoutf(CON_ERROR, "could not find animation: \"%s\"", anim);
         else
         {
             part *p = (part *)MDL::loading->parts.last();
