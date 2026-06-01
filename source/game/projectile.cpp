@@ -545,28 +545,31 @@ namespace game
 
         void destroy(ProjEnt& proj, const vec& position, const bool isLocal, const int attack)
         {
-            // Explode projectile.
-            if (proj.flags & ProjFlag_Explosive && isattackprojectile(proj.projectile) && validatk(proj.attack))
+            if (isattackprojectile(proj.projectile) && validatk(proj.attack))
             {
-                // Force attack update.
-                if (validatk(attack) && proj.attack != attack)
+                // Explode projectile.
+                if (proj.flags & ProjFlag_Explosive)
                 {
-                    proj.attack = attack;
+                    // Force attack update.
+                    if (validatk(attack) && proj.attack != attack)
+                    {
+                        proj.attack = attack;
+                    }
+
+                    // Explode projectile.
+                    explode(proj, position, isLocal);
                 }
 
-                // Explode projectile.
-                explode(proj, position, isLocal);
-            }
-
-            // Send destruction request to other clients.
-            if (isLocal)
-            {
-                addmsg
-                (
-                    N_DESTROYPROJECTILE, "rci3iv",
-                    proj.owner, lastmillis - maptime, proj.attack, proj.id,
-                    hits.length(), hits.length() * sizeof(hitmsg) / sizeof(int), hits.getbuf()
-                );
+                // Send destruction request to other clients.
+                if (isLocal)
+                {
+                    addmsg
+                    (
+                        N_DESTROYPROJECTILE, "rci3iv",
+                        proj.owner, lastmillis - maptime, proj.attack, proj.id,
+                        hits.length(), hits.length() * sizeof(hitmsg) / sizeof(int), hits.getbuf()
+                    );
+                }
             }
 
             // Delete projectile.
