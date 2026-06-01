@@ -1073,7 +1073,7 @@ namespace game
     extern int following, specmode;
     extern int smoothmove, smoothdist;
     extern int deathscream;
-    extern int getdeathstate(gameent* d, int atk, int flags);
+    extern int getDeathState(gameent* d, gameent* actor, const int attack, const int flags);
     extern const int getrespawndelay(gameent* d);
     extern const int getrespawnwait(gameent* d);
 

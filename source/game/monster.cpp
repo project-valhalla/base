@@ -372,7 +372,7 @@ namespace game
         }
         else
         {
-            deathstate = getdeathstate(this, atk, killflags);
+            deathstate = getDeathState(this, self, atk, killflags);
         }
         lastpain = lastmillis;
         exploding = false;

@@ -996,9 +996,9 @@ namespace game
     VARR(mapdeath, 0, Death_Default, Death_Num);
     VARP(gore, 0, 1, 1);
 
-    int getdeathstate(gameent* d, int atk, int flags)
+    int getDeathState(gameent* d, gameent* actor, const int attack, const int flags)
     {
-        if (gore && d->shouldgib())
+        if (gore && (d->shouldgib() || actor->haspowerup(PU_DAMAGE)))
         {
             return Death_Gib;
         }
@@ -1009,9 +1009,9 @@ namespace game
                 return Death_Headshot;
             }
         }
-        if (validatk(atk))
+        if (validatk(attack))
         {
-            return attacks[atk].deathstate;
+            return attacks[attack].deathstate;
         }
         return mapdeath;
     }
@@ -1076,7 +1076,7 @@ namespace game
             }
         }
         // Update player state and reset AI.
-        d->deathstate = getdeathstate(d, atk, flags);
+        d->deathstate = getDeathState(d, actor, atk, flags);
         setdeathstate(d);
         ai::kill(d, actor);
         projectiles::checkOwned(d);
