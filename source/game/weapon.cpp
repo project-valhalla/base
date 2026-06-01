@@ -267,9 +267,112 @@ namespace game
         camera::fixrange();
     }
 
-    static void doAttack(gameent* d, const vec& target, const int attack, const int weapon)
+    void applyDelay(gameent* d, const int attack)
     {
-        vec from = d->o, to = target, dir = vec(to).sub(from).safenormalize();
+        d->applyAttackDelay(attack);
+        if (d->ai)
+        {
+            const int gun = attacks[attack].gun;
+            if (gun == GUN_PISTOL)
+            {
+                d->delay[gun] += int(d->delay[gun] * (((101 - d->skill) + rnd(111 - d->skill)) / 100.f));
+            }
+        }
+    }
+
+    /*
+        If an invalid attack is triggered via shooting, check if it is a special case.
+        Otherwise simply do nothing (and effectively prevent the player from firing).
+    */
+    static void checkAbility(gameent* player, const int weapon)
+    {
+        switch (weapon)
+        {
+            case GUN_ROCKET:
+                projectiles::detonate(player, weapon);
+                break;
+
+            // Nothing to do here.
+            default:
+                break;
+        }
+
+        // If we reach this point, we are performing an ability and not firing anymore.
+        player->attacking = ACT_IDLE;
+    }
+
+    VARP(autoswitch, 0, 1, 1);
+
+    void shoot(gameent* d, const vec& aimPoint)
+    {
+        // Add a small delay after switching weapons before allowing shooting again.
+        if (d->lastswitch > 0)
+        {
+            const int elapsed = lastmillis - d->lastswitch;
+            if (elapsed < GUN_SWITCH_DELAY)
+            {
+                return;
+            }
+        }
+
+        const int weapon = d->gunselect;
+        const int action = d->attacking;
+        const int attack = guns[weapon].attacks[action];
+        if (!validact(action) || !validgun(weapon))
+        {
+            return;
+        }
+
+        /*
+            If the attack we are using is not valid, must be something else.
+            Check if the weapon can perform an ability, otherwise simply return.
+        */
+        if (!validatk(attack))
+        {
+            checkAbility(d, weapon);
+            return;
+        }
+
+        if (!d->canShoot(attack, weapon, lastmillis))
+        {
+            return;
+        }
+        if (d->delay[weapon] > 0)
+        {
+            d->delay[weapon] = 0;
+        }
+        d->lastattack = attack;
+        d->setLastAction(attack, lastmillis);
+        if (attacks[attack].action == ACT_THROW || attacks[attack].action == GUN_MELEE)
+        {
+            // Disable zoom only if we're the shooting player or spectating them.
+            if (d == followingplayer(self))
+            {
+                camera::camera.zoomstate.disable();
+            }
+        }
+
+        const int projectile = attacks[attack].projectile;
+        if (!canshoot(d, attack, weapon, projectile))
+        {
+            if (d == self)
+            {
+                sendsound(S_WEAPON_NOAMMO, d);
+                d->delay[weapon] = GUN_EMPTY_DELAY;
+                d->lastattack = ATK_INVALID;
+                if (autoswitch && d->ammo[weapon] <= 0)
+                {
+                    weaponswitch(d);
+
+                    // Cancel the attack since we are switching weapons.
+                    d->attacking = ACT_IDLE;
+                }
+            }
+            return;
+        }
+        d->useAmmo(attack);
+
+        vec from = d->o, to = aimPoint, dir = vec(to).sub(from).safenormalize();
         float dist = to.dist(from);
         addRecoil(d, dir, attack);
         if (attacks[attack].action == ACT_MELEE)
@@ -310,133 +413,6 @@ namespace game
                 hits.length(), hits.length() * sizeof(hitmsg) / sizeof(int), hits.getbuf()
             );
         }
-    }
-
-    void applyDelay(gameent* d, const int attack)
-    {
-        d->applyAttackDelay(attack);
-        if (d->ai)
-        {
-            const int gun = attacks[attack].gun;
-            if (gun == GUN_PISTOL)
-            {
-                d->delay[gun] += int(d->delay[gun] * (((101 - d->skill) + rnd(111 - d->skill)) / 100.f));
-            }
-        }
-    }
-
-    void throwAttack(gameent* player, const vec& to)
-    {
-        const int attack = ATK_GRENADE1;
-        const int weapon = player->gunselect;
-        doAttack(player, to, attack, weapon);
-        applyDelay(player, attack);
-
-        // Reset the timestamp so we can throw again.
-        player->lastthrow = 0;
-    }
-
-    /*
-        If an invalid attack is triggered via shooting, check if it is a special case.
-        Otherwise simply do nothing (and effectively prevent the player from firing).
-    */
-    static void checkAbility(gameent* player, const int weapon)
-    {
-        switch (weapon)
-        {
-            case GUN_ROCKET:
-                projectiles::detonate(player, weapon);
-                break;
-
-            // Nothing to do here.
-            default:
-                break;
-        }
-
-        // If we reach this point, we are performing an ability and not firing anymore.
-        player->attacking = ACT_IDLE;
-    }
-
-    VARP(autoswitch, 0, 1, 1);
-
-    void shoot(gameent* d, const vec& targ)
-    {
-        /*
-            Add a small delay after switching weapons before allowing shooting.
-            If we are throwing, then prevent the user from firing or throwing again.
-        */
-        const bool hasSwitchDelay = d->lastswitch && lastmillis - d->lastswitch < GUN_SWITCH_DELAY;
-        const bool hasThrowDelay = d->lastthrow && lastmillis - d->lastthrow <= GUN_THROW_DELAY;
-        if (hasSwitchDelay || hasThrowDelay)
-        {
-            return;
-        }
-
-        const int weapon = d->gunselect;
-        const int action = d->attacking;
-        const int attack = guns[weapon].attacks[action];
-        if (!validact(action) || !validgun(weapon))
-        {
-            return;
-        }
-
-        /*
-            If the attack we are using is not valid, must be something else.
-            Check if the weapon can perform an ability, otherwise simply return.
-        */
-        if (!validatk(attack))
-        {
-            checkAbility(d, weapon);
-            return;
-        }
-
-        if (!d->canShoot(attack, weapon, lastmillis))
-        {
-            return;
-        }
-        if (d->delay[weapon] > 0)
-        {
-            d->delay[weapon] = 0;
-        }
-        d->lastattack = attack;
-        d->setLastAction(attack, lastmillis);
-        if (attacks[attack].action == ACT_THROW || attacks[attack].action == GUN_MELEE)
-        {
-            // Disable zoom only if we're the shooting player or spectating them.
-            if (d == followingplayer(self))
-            {
-                camera::camera.zoomstate.disable();
-            }
-
-            // If the action is a throw and we have no throw timestamp.
-            if (attacks[attack].action == ACT_THROW && !d->lastthrow)
-            {
-                d->prepareThrow(lastmillis);
-
-                // Return cause we don't need all the stuff below for now.
-                return;
-            }
-        }
-
-        const int projectile = attacks[attack].projectile;
-        if (!canshoot(d, attack, weapon, projectile))
-        {
-            if (d == self)
-            {
-                sendsound(S_WEAPON_NOAMMO, d);
-                d->delay[weapon] = GUN_EMPTY_DELAY;
-                d->lastattack = ATK_INVALID;
-                if (autoswitch && d->ammo[weapon] <= 0)
-                {
-                    weaponswitch(d);
-                    d->attacking = ACT_IDLE; // Cancel the attack since we are switching weapons.
-                }
-            }
-            return;
-        }
-        d->useAmmo(attack);
-
-        doAttack(d, targ, attack, weapon);
 
         if (!attacks[attack].isfullauto)
         {
@@ -513,23 +489,6 @@ namespace game
         }
     }
 
-    void updateThrow(gameent* player)
-    {
-        if (!player->lastthrow)
-        {
-            return;
-        }
-        const int elapsed = lastmillis - player->lastthrow;
-        const int delay = GUN_THROW_DELAY;
-        if (elapsed >= delay)
-        {
-            // If it's a bot, use the bot's target.
-            const vec to = player->ai ? player->ai->target : worldpos;
-
-            throwAttack(player, to);
-        }
-    }
-
     void updatePlayerWeapons(gameent* player, const vec& to, const int time)
     {
         // Only allow shooting if the player has joined a game.
@@ -541,7 +500,6 @@ namespace game
 
         shoot(player, to);
         updateRecoil(player, time);
-        updateThrow(player);
     }
 
     void updateweapons(const int curtime)
@@ -707,14 +665,13 @@ namespace game
         const int weapon = attacks[attack].gun;
         const int previousAction = validgun(weapon) ? player->lastAction[weapon] : 0;
         const int sound = attacks[attack].sound;
-        float dist = from.dist(to);
         const gameent* hudPlayer = followingplayer(self);
         int trackType = TRACK_ORIGIN;
         switch (attack)
         {
             case ATK_MELEE:
             case ATK_ZOMBIE:
-                from = player->hand;
+                from = camera::camera.zoomstate.isenabled() ? player->o : player->hand;
                 trackType = TRACK_HAND_LEFT;
                 break;
 
@@ -827,10 +784,11 @@ namespace game
                 break;
 
             case ATK_GRENADE1:
+
                 // Hand is not rendered when fully zoomed in. Use player origin.
                 from = camera::camera.zoomstate.isenabled() ? player->o : player->hand;
 
-                to.addz(dist / 8);
+                trackType = TRACK_HAND_LEFT;
                 break;
 
             case ATK_PISTOL1:

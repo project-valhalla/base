@@ -42,7 +42,8 @@ enum
     ProjFlag_Invincible   = 1 << 10, // Cannot be destroyed.
     ProjFlag_AdjustSpeed  = 1 << 11, // Adjusts speed based on distance.
     ProjFlag_MultiHit	  = 1 << 12, // Hits multiple targets directly during lifetime.
-    ProjFlag_DieWithOwner = 1 << 13  // Until death do us part?
+    ProjFlag_DieWithOwner = 1 << 13, // Until death do us part?
+    ProjFlag_Throw        = 1 << 14  // Thrown by hand.
 };
 
 static const struct projectileinfo
@@ -57,7 +58,7 @@ projs[Projectile_Max] =
 {
     {
         Projectile_Grenade,
-        ProjFlag_Weapon | ProjFlag_Bounce | ProjFlag_Explosive,
+        ProjFlag_Weapon | ProjFlag_Explosive | ProjFlag_Throw,
         ATK_GRENADE2,
         1500,
         S_BOUNCE_ROCKET,
@@ -69,7 +70,7 @@ projs[Projectile_Max] =
         200,
         0,
         1.4f,
-        0,
+        200,
         "projectile/grenade",
     },
     {
@@ -255,7 +256,7 @@ inline bool isejectedprojectile(const int projectile)
 struct ProjEnt : dynent
 {
     int id, attack, projectile, flags, lifetime, health, weight, trackType;
-    int variant, bounces, offsetMillis, hitFlags;
+    int variant, bounces, offsetMillis, hitFlags, throwState;
     int millis, lastImpact, bounceSound, loopChannel, loopSound;
     float lastYaw, gravity, elasticity, offsetHeight, dist;
     bool isLocal;
@@ -265,7 +266,15 @@ struct ProjEnt : dynent
 
     vector<dynent*> targets;
 
-    ProjEnt() : variant(0), bounces(0), hitFlags(0), millis(0), lastImpact(0), bounceSound(-1), loopChannel(-1), loopSound(-1)
+    enum ThrowState
+    {
+        None = 0,
+        Held,	   // Held by the player, ready to be thrown.
+        Throwing,  // In the process of being thrown.
+        Thrown     // The projectile has been thrown and is now interacting with the environment autonomously.
+    };
+
+    ProjEnt() : variant(0), bounces(0), hitFlags(0), throwState(ThrowState::None), millis(0), lastImpact(0), bounceSound(-1), loopChannel(-1), loopSound(-1)
     {
         state = CS_ALIVE;
         type = ENT_PROJECTILE;
@@ -387,16 +396,17 @@ struct ProjEnt : dynent
     {
         projectile = type;
         const projectileinfo& projectileInfo = projs[type];
-        this->flags = projectileInfo.flags;
+        flags = projectileInfo.flags;
         setSpeed(projectileInfo);
-        if (this->flags & ProjFlag_Bounce)
-        {
-            setBounce(projectileInfo);
-        }
+        setBounce(projectileInfo);
         setLifeTime(projectileInfo);
         setRadius(projectileInfo);
         setSounds(projectileInfo);
         setModel(projectileInfo);
+        if (flags & ProjFlag_Throw)
+        {
+            throwState = ThrowState::Throwing;
+        }
     }
 
     void checkliquid()
@@ -421,9 +431,36 @@ struct ProjEnt : dynent
 
     void detach()
     {
-        flags &= ~(ProjFlag_Track);
-        flags |= ProjFlag_Bounce;
+        if (flags & ProjFlag_Track)
+        {
+            flags &= ~(ProjFlag_Track);
+        }
+        if (flags & ProjFlag_Bounce)
+        {
+            flags |= ProjFlag_Bounce;
+        }
+        throwState = ThrowState::Thrown;
         resetinterp();
+    }
+
+    bool hasBehavior(const int behavior) const
+    {
+        // Thrown projectiles: check state for dynamic behaviors.
+        switch (throwState)
+        {
+            case ThrowState::Held:
+            case ThrowState::Throwing:
+                return (behavior & ProjFlag_Track);
+
+            case ThrowState::Thrown:
+                return (behavior & ProjFlag_Bounce);
+
+            default:
+                break;
+        }
+
+        // Use static flags.
+        return (flags & behavior);
     }
 
     /*
@@ -457,7 +494,7 @@ struct ProjEnt : dynent
 
     vec getOffset()
     {
-        if (flags & ProjFlag_Bounce)
+        if (hasBehavior(ProjFlag_Bounce))
         {
             return offsetPosition();
         }
@@ -467,7 +504,7 @@ struct ProjEnt : dynent
     // Adjust projectile's model.
     vec manipulateModel()
     {
-        if (!(flags & ProjFlag_Bounce))
+        if (!hasBehavior(ProjFlag_Bounce))
         {
             const float dist = min(o.dist(to) / 32.0f, 1.0f);
             const vec pos = vec(o).add(vec(offset).mul(dist * offsetMillis / float(OFFSET_MILLIS)));

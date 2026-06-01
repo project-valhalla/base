@@ -127,9 +127,10 @@ enum
 enum
 {
     N_CONNECT = 0, N_SERVINFO, N_WELCOME, N_INITCLIENT, N_POS, N_TEXT, N_SOUND, N_CDIS,
-    N_SHOOT, N_DESTROYPROJECTILE, N_DAMAGEPROJECTILE, N_HIT,
+    N_SHOOT, N_HIT,
+    Net_ProjectileDamage, Net_ProjectileDestroy, Net_ProjectileDestroyEvent, Net_ProjectileThrow, Net_ProjectileThrowEvent,
     N_SUICIDE, N_DIED, N_DAMAGE, N_HITPUSH,
-    N_SHOTEVENT, N_DESTROYEVENT, N_REGENERATE,
+    N_SHOTEVENT, N_REGENERATE,
     N_TRYSPAWN, N_SPAWNSTATE, N_SPAWN, N_FORCEDEATH,
     N_GUNSELECT, N_TAUNT, N_PHYSICSEVENT,
     N_NOTICE, N_ANNOUNCE,
@@ -159,9 +160,10 @@ enum
 static const int msgsizes[] =               // size inclusive message token, 0 for variable or not-checked sizes
 {
     N_CONNECT, 0, N_SERVINFO, 0, N_WELCOME, 1, N_INITCLIENT, 0, N_POS, 0, N_TEXT, 0, N_SOUND, 3, N_CDIS, 2,
-    N_SHOOT, 0, N_DESTROYPROJECTILE, 0, N_DAMAGEPROJECTILE, 5, N_HIT, 0,
+    N_SHOOT, 0, N_HIT, 0,
+    Net_ProjectileDamage, 5, Net_ProjectileDestroy, 0, Net_ProjectileDestroyEvent, 4, Net_ProjectileThrow, 9, Net_ProjectileThrowEvent, 9,
     N_SUICIDE, 1, N_DIED, 7, N_DAMAGE, 11, N_HITPUSH, 7,
-    N_SHOTEVENT, 11, N_DESTROYEVENT, 4, N_REGENERATE, 2,
+    N_SHOTEVENT, 11, N_REGENERATE, 2,
     N_TRYSPAWN, 1, N_SPAWNSTATE, 9, N_SPAWN, 3, N_FORCEDEATH, 2,
     N_GUNSELECT, 2, N_TAUNT, 1, N_PHYSICSEVENT, 3,
     N_NOTICE, 2, N_ANNOUNCE, 1,
@@ -686,7 +688,7 @@ struct gameent : dynent, gamestate
     int clientnum, privilege, lastupdate, plag, ping;
     int lifesequence;                   // sequence id for each respawn, used in damage test
     int respawned, suicided;
-    int lastpain, lasthurt, lastspawn, lastthrow;
+    int lastpain, lasthurt, lastspawn;
     int lastattack, lastattacker, lasthit, lastkill;
     int lastWeaponUsed;
     int deathstate;
@@ -758,7 +760,7 @@ struct gameent : dynent, gamestate
     gameent() : weight(100),
                 clientnum(-1), privilege(PRIV_NONE), lastupdate(0), plag(0), ping(0),
                 lifesequence(0), respawned(-1), suicided(-1),
-                lastpain(0), lasthurt(0), lastspawn(0), lastthrow(0),
+                lastpain(0), lasthurt(0), lastspawn(0),
                 lastfootstep(0), lastyelp(0), lastswitch(0), lastswitchattempt(0), lastroll(0),
                 frags(0), flags(0), deaths(0), points(0), totaldamage(0), totalshots(0), lives(3), holdingflag(0),
                 edit(NULL), smoothmillis(-1), respawnPoint(-1),
@@ -918,15 +920,9 @@ struct gameent : dynent, gamestate
         resetLastAction(time);
     }
 
-    void prepareThrow(const int time)
-    {
-        lastthrow = time;
-    }
-
     void cancelAttack()
     {
         attacking = ACT_IDLE;
-        lastthrow = 0;
     }
 
     bool haslowhealth()
@@ -1142,6 +1138,7 @@ namespace game
         extern void bounce(ProjEnt& proj, const vec& surface);
         extern void collidewithentity(physent* bouncer, physent* collideEntity);
         extern void checkOwned(const gameent* owned);
+        extern void throw_(ProjEnt& proj, const vec& from = vec(0, 0, 0), const vec& to = vec(0, 0, 0));
         extern void destroy(ProjEnt& proj, const vec& position, const bool isLocal = true, const int attack = ATK_INVALID);
         extern void detonate(gameent* owner, const int gun);
         extern void triggerExplosion(gameent* owner, const int attack, const vec& position, const vec& velocity);
@@ -1198,9 +1195,8 @@ namespace game
 
     extern swayinfo sway;
 
-    extern void shoot(gameent *d, const vec &targ);
+    extern void shoot(gameent *d, const vec &aimPoint);
     extern void updateRecoil(gameent* d, const int curtime);
-    extern void updateThrow(gameent* player);
     extern void applyImpactEffects(const int attack, gameent* player, const vec& from, const vec& to, const bool isHit = false);
     extern void applyShotEffects(const int attack, gameent* player, vec& from, vec& to, const int id, const bool isHit, const bool isLocal);
     extern void updateShotEvent(gameent* player, const int attack);

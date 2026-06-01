@@ -194,6 +194,14 @@ namespace server
         void process(clientinfo* client);
     };
 
+    struct ThrowEvent : TimedGameEvent
+    {
+        int id;
+        vec from, to;
+
+        void process(clientinfo* client);
+    };
+
     struct KillEvent : GameEvent
     {
         void process(clientinfo* client);
@@ -1960,8 +1968,9 @@ namespace server
 
         uchar operator[](int msg) const { return msg >= 0 && msg < NUMMSG ? msgmask[msg] : 0; }
     } msgfilter(-1, N_CONNECT, N_SERVINFO, N_INITCLIENT, N_WELCOME, N_MAPCHANGE, N_SERVMSG,
-                N_DAMAGE, N_HITPUSH, N_SHOTEVENT, N_DESTROYEVENT, N_DAMAGEPROJECTILE, N_REGENERATE,
-                N_DIED, N_SPAWNSTATE, N_FORCEDEATH,
+                N_DAMAGE, N_HITPUSH, N_SHOTEVENT,
+                Net_ProjectileDestroyEvent, Net_ProjectileDamage, Net_ProjectileThrowEvent,
+                N_REGENERATE, N_DIED, N_SPAWNSTATE, N_FORCEDEATH,
                 N_TEAMINFO, N_ITEMACC, N_ITEMSPAWN, N_TIMEUP,
                 N_CDIS, N_CURRENTMASTER, N_PONG, N_RESUME,
                 N_NOTICE, N_ANNOUNCE, N_SENDDEMOLIST, N_SENDDEMO, N_DEMOPLAYBACK, N_SENDMAP,
@@ -3384,7 +3393,7 @@ namespace server
                 return;
             }
             projectile->kill(actor);
-            sendf(-1, 1, "ri5", N_DAMAGEPROJECTILE, id, actor->clientnum, target->clientnum, attack);
+            sendf(-1, 1, "ri5", Net_ProjectileDamage, id, actor->clientnum, target->clientnum, attack);
         }
     }
 
@@ -3518,7 +3527,7 @@ namespace server
         {
             return;
         }
-        sendf(-1, 1, "ri4x", N_DESTROYEVENT, client->clientnum, id, attack, client->ownernum);
+        sendf(-1, 1, "ri4x", Net_ProjectileDestroyEvent, client->clientnum, id, attack, client->ownernum);
     }
 
     void ShotEvent::process(clientinfo* client)
@@ -3708,6 +3717,24 @@ namespace server
         }
         
         validate(client, attacker, context, flags);
+    }
+
+    void ThrowEvent::process(clientinfo* client)
+    {
+        if (!client->state.isalive(gamemillis))
+        {
+            return;
+        }
+        
+        // Send event to update other clients.
+        sendf
+        (
+            -1, 1, "ri9x", Net_ProjectileThrowEvent,
+            client->clientnum, id,
+            static_cast<int>(from.x * DMF), static_cast<int>(from.y * DMF), static_cast<int>(from.z * DMF),
+            static_cast<int>(to.x * DMF), static_cast<int>(to.y * DMF), static_cast<int>(to.z * DMF),
+            client->ownernum
+        );
     }
 
     void PickupEvent::process(clientinfo* client)
@@ -4746,7 +4773,48 @@ namespace server
                 break;
             }
 
-            case N_DESTROYPROJECTILE:
+            case N_HIT:
+            {
+                const int id = getint(p);
+                const int attack = getint(p);
+                const int hitCount = getint(p);
+                const int eventTime = cq ? cq->geteventmillis(gamemillis, id) : 0;
+
+                // Create "hit" game event.
+                HitEvent* event = new HitEvent;
+                event->id = id;
+                event->time = eventTime;
+                event->attack = attack;
+                event->mode = HitEvent::Radius;
+                for (int i = 0; i < hitCount; i++)
+                {
+                    if (p.overread())
+                    {
+                        break;
+                    }
+                    HitInfo& hit = event->hits.add();
+                    hit.target = getint(p);
+                    hit.lifeSequence = getint(p);
+                    hit.distance = getint(p) / DMF;
+                    hit.rays = getint(p);
+                    hit.flags = getint(p);
+                    hit.id = getint(p);
+                    hit.direction.x = getint(p) / DNF;
+                    hit.direction.y = getint(p) / DNF;
+                    hit.direction.z = getint(p) / DNF;
+                }
+                if (cq != nullptr)
+                {
+                    cq->addevent(event);
+                }
+                else
+                {
+                    delete event;
+                }
+                break;
+            }
+
+			case Net_ProjectileDestroy:
             {
                 const int time = getint(p);
                 const int attack = getint(p);
@@ -4810,36 +4878,25 @@ namespace server
                 break;
             }
 
-            case N_HIT:
+            case Net_ProjectileThrow:
             {
+                const int timestamp = getint(p);
                 const int id = getint(p);
-                const int attack = getint(p);
-                const int hitCount = getint(p);
-                const int eventTime = cq ? cq->geteventmillis(gamemillis, id) : 0;
+                vec from, to;
+                from.x = getint(p) / DMF;
+                from.y = getint(p) / DMF;
+                from.z = getint(p) / DMF;
+                to.x = getint(p) / DMF;
+                to.y = getint(p) / DMF;
+                to.z = getint(p) / DMF;
+                const int eventTime = cq ? cq->geteventmillis(gamemillis, timestamp) : 0;
 
-                // Create "hit" game event.
-                HitEvent* event = new HitEvent;
+                // Create "throw" game event.
+                ThrowEvent* event = new ThrowEvent;
                 event->id = id;
                 event->time = eventTime;
-                event->attack = attack;
-                event->mode = HitEvent::Radius;
-                for (int i = 0; i < hitCount; i++)
-                {
-                    if (p.overread())
-                    {
-                        break;
-                    }
-                    HitInfo& hit = event->hits.add();
-                    hit.target = getint(p);
-                    hit.lifeSequence = getint(p);
-                    hit.distance = getint(p) / DMF;
-                    hit.rays = getint(p);
-                    hit.flags = getint(p);
-                    hit.id = getint(p);
-                    hit.direction.x = getint(p) / DNF;
-                    hit.direction.y = getint(p) / DNF;
-                    hit.direction.z = getint(p) / DNF;
-                }
+                event->from = from;
+                event->to = to;
                 if (cq != nullptr)
                 {
                     cq->addevent(event);

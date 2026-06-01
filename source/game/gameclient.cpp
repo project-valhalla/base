@@ -2007,7 +2007,7 @@ namespace game
                 break;
             }
 
-            case N_DESTROYEVENT:
+            case Net_ProjectileDestroyEvent:
             {
                 const int client = getint(p);
                 const int id = getint(p);
@@ -2072,7 +2072,7 @@ namespace game
                 break;
             }
 
-            case N_DAMAGEPROJECTILE:
+            case Net_ProjectileDamage:
             {
                 const int id = getint(p);
                 const int actorClient = getint(p);
@@ -2087,6 +2087,27 @@ namespace game
                 gameent* actor = getclient(actorClient);
                 projectiles::damage(proj, actor, attack);
                 dodamage(0, (gameent*)proj, actor, proj->o, attack, Hit::Projectile, false);
+                break;
+            }
+
+            case Net_ProjectileThrowEvent:
+            {
+                const int client = getint(p);
+                const int id = getint(p);
+                vec from, to;
+                from.x = getint(p) / DMF;
+                from.y = getint(p) / DMF;
+                from.z = getint(p) / DMF;
+                to.x = getint(p) / DMF;
+                to.y = getint(p) / DMF;
+                to.z = getint(p) / DMF;
+                gameent* owner = getclient(client);
+                ProjEnt* proj = projectiles::get(id, owner);
+                if (proj == nullptr)
+                {
+                    break;
+                }
+                projectiles::throw_(*proj, from, to);
                 break;
             }
 

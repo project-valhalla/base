@@ -102,41 +102,34 @@ namespace game
             vec dir(to);
             dir.sub(from).safenormalize();
             proj.vel = dir;
-            if (proj.flags & ProjFlag_Bounce)
-            {
-                proj.vel.mul(proj.speed);
-            }
-
             avoidcollision(&proj, dir, owner, 0.1f);
-
             if (proj.flags & ProjFlag_Weapon)
             {
                 proj.offset = hudgunorigin(proj.attack, from, to, owner);
             }
-            if (proj.flags & ProjFlag_Bounce)
+            if (proj.hasBehavior(ProjFlag_Bounce))
             {
+                proj.vel.mul(proj.speed);
                 if (proj.flags & ProjFlag_Weapon)
                 {
-                    if (owner == hudplayer() && !camera::isthirdperson())
+                    if (proj.owner == hudplayer() && !camera::isthirdperson())
                     {
-                        proj.offset.sub(owner->o).rescale(16).add(owner->o);
+                        proj.offset.sub(proj.owner->o).rescale(16).add(proj.owner->o);
                     }
                 }
-                else proj.offset = from;
-            }
-
-            const vec o = proj.flags & ProjFlag_Bounce ? proj.o : from;
-            proj.offset.sub(o);
-
-            proj.offsetMillis = OFFSET_MILLIS;
-
-            if (proj.flags & ProjFlag_Bounce)
-            {
+                else
+                {
+                    proj.offset = proj.from;
+                }
+                proj.offset.sub(proj.o);
                 proj.resetinterp();
             }
-
+            else
+            {
+                proj.offset.sub(from);
+            }
+            proj.offsetMillis = OFFSET_MILLIS;
             proj.lastPosition = owner->o;
-
             proj.checkliquid();
             proj.millis = lastmillis;
         }
@@ -268,7 +261,7 @@ namespace game
 
         static void detectTargets(ProjEnt& proj, const vec& position)
         {
-            if (!(proj.flags & ProjFlag_Linear) && !(proj.flags & ProjFlag_Track))
+            if ((proj.flags & ProjFlag_Linear) == 0 && !proj.hasBehavior(ProjFlag_Track))
             {
                 return;
             }
@@ -492,7 +485,7 @@ namespace game
                 {
                     continue;
                 }
-                if (proj->flags & ProjFlag_Track)
+                if (proj->hasBehavior(ProjFlag_Track))
                 {
                     proj->detach();
                 }
@@ -543,6 +536,48 @@ namespace game
             }
         }
 
+        /*
+            Throw a projectile: update the trajectory of a tracking projectile based on the owner's position and orientation,
+            or based on the provided parameters for non-local projectiles.
+            Using an underscore in the name to avoid confusion with the "throw" keyword in C++.
+        */
+        void throw_(ProjEnt& proj, const vec& from, const vec& to)
+        {
+            proj.throwState = proj.ThrowState::Thrown;
+            if (proj.isLocal)
+            {
+                vec from = getTrackingPosition(proj.owner, proj.trackType);
+                vec to = worldpos;
+                float distance = from.dist(to);
+
+                // Add vertical offset to simulate a ballistic arc.
+                to.addz(distance / 8);
+
+                proj.to = to;
+                proj.from = from;
+
+                // Update projectile's direction for other clients.
+                addmsg
+                (
+                    Net_ProjectileThrow, "rci8", proj.owner, lastmillis - maptime, proj.id,
+                    static_cast<int>(from.x * DMF), static_cast<int>(from.y * DMF), static_cast<int>(from.z * DMF),
+                    static_cast<int>(to.x * DMF), static_cast<int>(to.y * DMF), static_cast<int>(to.z * DMF)
+                );
+            }
+            else
+            {
+                proj.to = to;
+                proj.from = from;
+            }
+            vec direction(proj.to);
+            direction.sub(proj.from).safenormalize();
+            proj.vel = direction;
+            avoidcollision(&proj, proj.vel, proj.owner, 0.1f);
+            proj.vel.mul(proj.speed);
+            proj.offsetMillis = OFFSET_MILLIS;
+            proj.resetinterp();
+        }
+
         void destroy(ProjEnt& proj, const vec& position, const bool isLocal, const int attack)
         {
             if (isattackprojectile(proj.projectile) && validatk(proj.attack))
@@ -565,7 +600,7 @@ namespace game
                 {
                     addmsg
                     (
-                        N_DESTROYPROJECTILE, "rci3iv",
+                        Net_ProjectileDestroy, "rci3iv",
                         proj.owner, lastmillis - maptime, proj.attack, proj.id,
                         hits.length(), hits.length() * sizeof(hitmsg) / sizeof(int), hits.getbuf()
                     );
@@ -732,7 +767,7 @@ namespace game
                 {
                     int qtime = min(80, rtime);
                     rtime -= qtime;
-                    if ((proj.lifetime -= qtime) < 0 || (proj.flags & ProjFlag_Bounce && physics::hasbounced(proj, qtime / 1000.0f, 0.5f, 0.4f, 0.7f)))
+                    if ((proj.lifetime -= qtime) < 0 || (proj.hasBehavior(ProjFlag_Bounce) && physics::hasbounced(proj, qtime / 1000.0f, 0.5f, 0.4f, 0.7f)))
                     {
                         proj.kill();
                     }
@@ -743,10 +778,11 @@ namespace game
         void addeffects(ProjEnt& proj, const vec& oldPosition)
         {
             handleliquidtransitions(proj);
-            const vec position = proj.flags & ProjFlag_Bounce ? oldPosition : vec(proj.offset).mul(proj.offsetMillis / float(OFFSET_MILLIS)).add(oldPosition);
+            const vec position = proj.hasBehavior(ProjFlag_Bounce) ? oldPosition : vec(proj.offset).mul(proj.offsetMillis / float(OFFSET_MILLIS)).add(oldPosition);
             int tailColor = 0xFFFFFF;
             float tailSize = 2.0f, tailMinLength = 25.0f;
             const bool hasEnoughVelocity = proj.vel.magnitude() > 30.0f;
+            const projectileinfo& projectileInfo = projs[proj.projectile];
             if (proj.inwater)
             {
                 if (hasEnoughVelocity || proj.flags & ProjFlag_Linear)
@@ -759,7 +795,9 @@ namespace game
             {
                 case Projectile_Grenade:
                 {
-                    if (proj.lifetime < projs[proj.projectile].lifeTime - 100)
+                    const int elapsed = lastmillis - proj.millis;
+                    const int fadeTime = projectileInfo.fade;
+                    if (proj.throwState == proj.ThrowState::Thrown && elapsed >= fadeTime + 50)
                     {
                         particle_flare(proj.lastPosition, position, 500, PART_TRAIL_STRAIGHT, 0x74BCF9, 0.4f);
                     }
@@ -770,7 +808,7 @@ namespace game
                 {
                     tailColor = 0xFFC864;
                     tailMinLength = 90.0f;
-                    if (proj.lifetime <= projs[proj.projectile].lifeTime / 2)
+                    if (proj.lifetime <= projectileInfo.lifeTime / 2)
                     {
                         tailSize *= 2;
                     }
@@ -785,8 +823,8 @@ namespace game
                 case Projectile_Pulse:
                 {
                     tailColor = 0xDD88DD;
-                    const float fade = projs[proj.projectile].fade;
-                    const float progress = clamp(static_cast<float>(lastmillis - proj.millis) / fade, 0.0f, 1.0f);
+                    const float fadeTime = projectileInfo.fade;
+                    const float progress = clamp(static_cast<float>(lastmillis - proj.millis) / fadeTime, 0.0f, 1.0f);
                     tailSize = lerp(0.2f, 2.0f, progress);
                     particle_flare(position, position, 1, PART_ORB, tailColor, tailSize);
                     break;
@@ -794,7 +832,7 @@ namespace game
                 case Projectile_Plasma:
                 {
                     tailColor = 0x00FFFF;
-                    const float fade = projs[proj.projectile].fade;
+                    const float fade = projectileInfo.fade;
                     const float progress = clamp(static_cast<float>(lastmillis - proj.millis) / fade, 0.0f, 1.0f);
                     tailSize = 5.0f * ease::outelastic(progress);
                     particle_flare(position, position, 1, PART_ORB, tailColor, tailSize);
@@ -849,13 +887,13 @@ namespace game
                 const vec offset = vec(proj.o).add(proj.dv);
                 position = offset;
             }
-            else if (proj.flags & ProjFlag_Bounce)
+            else if (proj.hasBehavior(ProjFlag_Bounce))
             {
                 vec offset(proj.o);
                 offset.add(vec(proj.offset).mul(proj.offsetMillis / float(OFFSET_MILLIS)));
                 position = offset;
             }
-            else if (proj.flags & ProjFlag_Track)
+            else if (proj.hasBehavior(ProjFlag_Track))
             {
                 position = getTrackingPosition(proj.owner, proj.trackType);
             }
@@ -897,7 +935,16 @@ namespace game
                                 proj.kill();
                             }
                         }
-                        if (proj.flags & ProjFlag_Track)
+                        if (proj.isLocal && proj.owner == self && proj.flags & ProjFlag_Throw && proj.throwState == proj.ThrowState::Throwing)
+                        {
+                            const int elapsed = lastmillis - proj.millis;
+                            const int fadeTime = projs[proj.projectile].fade;
+                            if (elapsed >= fadeTime)
+                            {
+                                throw_(proj);
+                            }
+                        }
+                        if (proj.hasBehavior(ProjFlag_Track))
                         {
                             const vec direction = vec(position).sub(oldPosition).normalize();
                             const float range = proj.vel.magnitude() * (time / 1000.0f);
@@ -920,7 +967,7 @@ namespace game
                         }
                         if (isattackprojectile(proj.projectile))
                         {
-                            if (proj.flags & ProjFlag_Bounce)
+                            if (proj.hasBehavior(ProjFlag_Bounce))
                             {
                                 const bool isBouncing = physics::isbouncing(proj, proj.elasticity, 0.5f, proj.gravity);
                                 const bool hasBounced = projs[proj.projectile].maxBounces > 0 && proj.bounces >= projs[proj.projectile].maxBounces;
@@ -940,7 +987,7 @@ namespace game
                 }
                 else
                 {
-                    if (proj.flags & ProjFlag_Bounce)
+                    if (proj.hasBehavior(ProjFlag_Bounce))
                     {
                         if (proj.vel.magnitude() >= 25.0f)
                         {
@@ -1008,7 +1055,10 @@ namespace game
                     default:
                         return;
                 }
-                adddynlight(pos, 35, lightColor);
+                const float fadeTime = projs[proj.projectile].fade;
+                const float progress = clamp(static_cast<float>(lastmillis - proj.millis) / fadeTime, 0.0f, 1.0f);
+                const float radius = 35 * progress;
+                adddynlight(pos, radius, lightColor);
             }
         }
 
