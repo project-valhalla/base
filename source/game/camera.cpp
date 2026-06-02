@@ -438,8 +438,8 @@ namespace game
         VAR(avatarzoomfov, 1, 25, 60);
         VAR(avatarfov, 10, 39, 100);
         VARF(zoom, -1, 0, 1, shaders::toggleZoomEffects(zoom));
-        VARP(zoominvel, 110, 110, 500);
-        VARP(zoomoutvel, 0, 150, 500);
+        VARP(zoominvel, 120, 120, 500);
+        VARP(zoomoutvel, 0, 160, 500);
         VARP(zoomfov, 10, 42, 90);
 
         void camerainfo::zoominfo::update()
