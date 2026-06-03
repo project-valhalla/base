@@ -253,12 +253,16 @@ inline bool isejectedprojectile(const int projectile)
     return isvalidprojectile(projectile) && projs[projectile].flags & ProjFlag_Eject;
 }
 
+const int CATCH_RADIUS = 14;
+const int CATCH_COOLDOWN = 300;
+
 struct ProjEnt : dynent
 {
     int id, attack, projectile, flags, lifetime, health, weight, trackType;
     int variant, bounces, offsetMillis, hitFlags, throwState;
-    int millis, lastImpact, bounceSound, loopChannel, loopSound;
+    int millis, lastImpact, attachStartTime, bounceSound, loopChannel, loopSound;
     float lastYaw, gravity, elasticity, offsetHeight, dist;
+    float catchYaw, catchPitch, catchRoll;
     bool isLocal;
     string model;
     vec offset, lastPosition, dv, from, to;
@@ -269,12 +273,14 @@ struct ProjEnt : dynent
     enum ThrowState
     {
         None = 0,
+        Attaching, // Grabbed by the player, not yet held.
         Held,	   // Held by the player, ready to be thrown.
         Throwing,  // In the process of being thrown.
         Thrown     // The projectile has been thrown and is now interacting with the environment autonomously.
     };
 
-    ProjEnt() : variant(0), bounces(0), hitFlags(0), throwState(ThrowState::None), millis(0), lastImpact(0), bounceSound(-1), loopChannel(-1), loopSound(-1)
+    ProjEnt() : variant(0), bounces(0), hitFlags(0), throwState(ThrowState::None),
+                millis(0), lastImpact(0), attachStartTime(0), bounceSound(-1), loopChannel(-1), loopSound(-1)
     {
         state = CS_ALIVE;
         type = ENT_PROJECTILE;
@@ -482,6 +488,36 @@ struct ProjEnt : dynent
             return true;
         }
         return false;
+    }
+
+    bool isAttaching() const
+    {
+        return throwState == ThrowState::Attaching;
+    }
+
+    bool isHeld() const
+    {
+        return throwState == ThrowState::Held;
+    }
+
+    bool isBeingThrown() const
+    {
+        return throwState == ThrowState::Throwing;
+    }
+
+    bool isThrown() const
+    {
+        return throwState == ThrowState::Thrown;
+    }
+
+    float getAttachProgress() const
+    {
+        if (!isAttaching())
+        {
+            return 1.0f;
+        }
+        const int elapsed = lastmillis - attachStartTime;
+        return clamp(static_cast<float>(elapsed) / CATCH_COOLDOWN, 0.0f, 1.0f);
     }
 
     vec offsetPosition()

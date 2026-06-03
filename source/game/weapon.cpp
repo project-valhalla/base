@@ -323,6 +323,12 @@ namespace game
             return;
         }
 
+        // Check whether we have interactions ongoing with projectiles first.
+        if (projectiles::checkInteractions(d))
+        {
+            return;
+        }
+
         /*
             If the attack we are using is not valid, must be something else.
             Check if the weapon can perform an ability, otherwise simply return.

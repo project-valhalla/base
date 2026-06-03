@@ -421,6 +421,29 @@ namespace game
                 }
                 break;
 
+            case TRACK_HELD:
+            {
+                if (player == followingplayer(self) && !camera::isthirdperson())
+                {
+                    // First-person position (relative to camera).
+                    vec forward;
+                    vecfromyawpitch(camera1->yaw, camera1->pitch, 1, 0, forward);
+                    position = camera1->o;
+                    const float offset = 20.0f;
+                    position.add(vec(forward).mul(offset));
+                }
+                else
+                {
+                    // Third-person position (in front of the player).
+                    vec forward;
+                    vecfromyawpitch(player->yaw, player->pitch, 1, 0, forward);
+                    position = player->o;
+                    const float offset = 10.0f;
+                    position.add(vec(forward).mul(offset));
+                }
+                break;
+            }
+
             default:
                 break;
         }
@@ -666,7 +689,18 @@ namespace game
     ICOMMAND(secondary, "D", (int *down), doaction(*down ? ACT_SECONDARY : ACT_IDLE));
     ICOMMAND(melee, "D", (int *down), doaction(*down ? ACT_MELEE : ACT_IDLE));
     ICOMMAND(grenade, "D", (int* down), doaction(*down ? ACT_THROW : ACT_IDLE));
-    ICOMMAND(interact, "D", (int *down), { self->interacting[Interaction::Active] = *down ? true : false;});
+
+    void doInteract(const bool isPressed)
+    {
+        // Look for other interactions first.
+        if (isPressed)
+        {
+            projectiles::checkInteractions(self);
+        }
+
+        self->interacting[Interaction::Active] = isPressed;
+    }
+    ICOMMAND(interact, "D", (int *down), doInteract(*down));
 
     bool isally(const gameent *a, const gameent *b)
     {

@@ -300,7 +300,8 @@ enum
     TRACK_HEAD,
     TRACK_HAND_LEFT,
     TRACK_FOOT_LEFT,
-    TRACK_FOOT_RIGHT
+    TRACK_FOOT_RIGHT,
+	TRACK_HELD
 };
 
 extern void adddynlight(const vec &o, float radius, const vec &color, int fade = 0, int peak = 0, int flags = 0, float initradius = 0, const vec &initcolor = vec(0, 0, 0), physent *owner = NULL, int track = TRACK_ORIGIN, const vec &dir = vec(0, 0, 0), int spot = 0);

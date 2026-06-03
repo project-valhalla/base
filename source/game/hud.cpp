@@ -516,16 +516,17 @@ namespace game
                 }
             }
 
-            if (hudPlayer->delay[hudPlayer->gunselect])
+            const bool isHoldingProjectile = hudPlayer->heldProjectile >= 0;
+            if (hudPlayer->delay[hudPlayer->gunselect] && !isHoldingProjectile) // We are reloading a weapon.
             {
-                // We are reloading a weapon.
                 color.mul(0.75f);
             }
-            else if (hudPlayer->interacting[Interaction::Available] && !isScoped) // Interaction available.
+            else if (!isScoped) // Prioritise shooting over "interaction" crosshair if we're aiming at a target.
             {
-                // Prioritise shooting over "use" crosshair if we're aiming at a target.
                 dynent* intersected = intersectClosest(hudPlayer, hudPlayer->o, worldpos, 1.0f, DYN_PLAYER | DYN_AI | DYN_PROJECTILE);
-                if (intersected == nullptr)
+                const bool isInteractionAvailable = hudPlayer->interacting[Interaction::Available];
+                const bool hasPotentialTarget = intersected != nullptr;
+                if (isHoldingProjectile || (isInteractionAvailable && !hasPotentialTarget))
                 {
                     crosshair = Pointer_Interact;
                     color = vec4(1, 1, 1, 1);

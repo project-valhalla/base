@@ -711,7 +711,8 @@ namespace game
         gameent *d = hudplayer();
         extern int hudgun;
         const bool isScoped = camera::camera.zoomstate.isenabled() && guns[d->gunselect].zoom == Zoom_Scope;
-        if(mainmenu || d->state == CS_DEAD || d->state == CS_SPECTATOR || d->state == CS_EDITING || !hudgun || editmode || isScoped)
+        const bool isHolding = d->lastCatch > 0 && lastmillis - d->lastCatch > 600;
+        if(mainmenu || d->state == CS_DEAD || d->state == CS_SPECTATOR || d->state == CS_EDITING || !hudgun || editmode || isScoped || isHolding)
         {
             d->muzzle = self->muzzle = vec(-1, -1, -1);
             d->eject = self->eject = vec(-1, -1, -1);
@@ -750,6 +751,11 @@ namespace game
                 animation = ANIM_GUN_SWITCH;
             }
             basetime = d->lastswitch;
+        }
+        if (d->lastCatch > 0 && lastmillis - d->lastCatch <= 600)
+        {
+            animation = ANIM_GUN_SWITCH | ANIM_REVERSE;
+            basetime = d->lastCatch;
         }
         if(d->lasttaunt && lastmillis-d->lasttaunt < 1000)
         {

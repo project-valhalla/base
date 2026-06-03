@@ -693,7 +693,7 @@ struct gameent : dynent, gamestate
     int lastWeaponUsed;
     int deathstate;
     int attacking;
-    int lasttaunt, lastfootstep, lastyelp, lastswitch, lastswitchattempt, lastroll;
+    int lasttaunt, lastfootstep, lastyelp, lastswitch, lastswitchattempt, lastroll, lastCatch;
     int lastpickup, lastpickupmillis, flagpickup;
     int frags, flags, deaths, points, totaldamage, totalshots, lives, holdingflag;
     editinfo *edit;
@@ -748,6 +748,8 @@ struct gameent : dynent, gamestate
     vec muzzle, eject, hand;
     bool interacting[Interaction::Count];
 
+    int heldProjectile;
+
     enum Ability
     {
         lastAttempt = 0,
@@ -761,12 +763,13 @@ struct gameent : dynent, gamestate
                 clientnum(-1), privilege(PRIV_NONE), lastupdate(0), plag(0), ping(0),
                 lifesequence(0), respawned(-1), suicided(-1),
                 lastpain(0), lasthurt(0), lastspawn(0),
-                lastfootstep(0), lastyelp(0), lastswitch(0), lastswitchattempt(0), lastroll(0),
+                lastfootstep(0), lastyelp(0), lastswitch(0), lastswitchattempt(0), lastroll(0), lastCatch(0),
                 frags(0), flags(0), deaths(0), points(0), totaldamage(0), totalshots(0), lives(3), holdingflag(0),
                 edit(NULL), smoothmillis(-1), respawnPoint(-1),
                 transparency(1),
                 team(0), playermodel(-1), playercolor(0), ai(NULL), ownernum(-1),
-                muzzle(-1, -1, -1), eject(-1, -1, -1), hand(-1, -1, -1)
+                muzzle(-1, -1, -1), eject(-1, -1, -1), hand(-1, -1, -1),
+                heldProjectile(-1)
     {
         loopi(Chan_Num)
         {
@@ -855,6 +858,8 @@ struct gameent : dynent, gamestate
         }
         resetInteractions();
         recoil.reset();
+        heldProjectile = -1;
+        lastCatch = 0;
     }
 
     void halt()
@@ -923,6 +928,22 @@ struct gameent : dynent, gamestate
     void cancelAttack()
     {
         attacking = ACT_IDLE;
+    }
+
+    void catchProjectile(const int id, const int time)
+    {
+        heldProjectile = id;
+        lastCatch = time;
+		interacting[Interaction::Active] = false;
+    }
+
+    void releaseProjectile(const int time)
+    {
+        cancelAttack();
+        heldProjectile = -1;
+        lastCatch = 0;
+        lastswitch = time;
+        interacting[Interaction::Active] = false;
     }
 
     bool haslowhealth()
@@ -1138,12 +1159,15 @@ namespace game
         extern void bounce(ProjEnt& proj, const vec& surface);
         extern void collidewithentity(physent* bouncer, physent* collideEntity);
         extern void checkOwned(const gameent* owned);
+        extern void check(gameent* player, const vec& position);
         extern void throw_(ProjEnt& proj, const vec& from = vec(0, 0, 0), const vec& to = vec(0, 0, 0));
         extern void destroy(ProjEnt& proj, const vec& position, const bool isLocal = true, const int attack = ATK_INVALID);
         extern void detonate(gameent* owner, const int gun);
         extern void triggerExplosion(gameent* owner, const int attack, const vec& position, const vec& velocity);
         extern void registerhit(dynent* target, gameent* actor, const int attack, const float dist, const int rays);
         extern void damage(ProjEnt* proj, gameent* actor, const int attack);
+
+        extern bool checkInteractions(gameent* player);
 
         ProjEnt* get(const int id, const gameent* owner);
     }

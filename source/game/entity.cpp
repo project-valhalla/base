@@ -825,6 +825,7 @@ namespace entities
         }
         checkHovered(player);
         const vec origin = player->feetpos();
+		projectiles::check(player, origin);
         loopv(ents)
         {
             extentity& entity = *ents[i];

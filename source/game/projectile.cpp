@@ -537,6 +537,83 @@ namespace game
         }
 
         /*
+            Catch a projectile: stop its trajectory and hold it.
+            Using an underscore in the name to avoid confusion with the "catch" keyword in C++.
+        */
+        static bool catch_(ProjEnt& proj, gameent* player, const vec& position)
+        {
+            if (lastmillis - player->lastCatch <= CATCH_COOLDOWN)
+            {
+                return false;
+            }
+
+            // Cannot catch projectiles that aren't thrown by hand.
+            if (!proj.isThrown() || (proj.flags & ProjFlag_Throw) == 0)
+            {
+                return false;
+            }
+
+            // Distance check to projectile.
+            if (position.dist(proj.o) > CATCH_RADIUS)
+            {
+                return false;
+            }
+
+            // Mark player as holding a projectile.
+            player->catchProjectile(proj.id, lastmillis);
+            sway.addevent(player, SwayEvent_Switch, 600, -15);
+
+            // CATCH!
+            proj.throwState = proj.ThrowState::Attaching;
+            proj.lastPosition = proj.o;
+            proj.attachStartTime = lastmillis;
+            proj.trackType = TRACK_HELD;
+            proj.owner = player;
+            proj.lifetime += projs[proj.projectile].lifeTime;
+            proj.catchYaw = proj.yaw;
+            proj.catchPitch = proj.pitch;
+            proj.catchRoll = proj.roll;
+            return true;
+        }
+
+        // Check for pick-ups or interactive projectiles.
+        void check(gameent* player, const vec& position)
+        {
+            if (player->state != CS_ALIVE)
+            {
+                return;
+            }
+            loopv(Projectiles)
+            {
+                ProjEnt& proj = *Projectiles[i];
+                if (proj.state != CS_ALIVE)
+                {
+                    continue;
+                }
+                if (player->interacting[Interaction::Active] && catch_(proj, player, position))
+                {
+                    break;
+                }
+            }
+        }
+
+        bool checkInteractions(gameent* player)
+        {
+            if (player->heldProjectile >= 0)
+            {
+                ProjEnt* proj = projectiles::get(player->heldProjectile, player);
+                if (proj == nullptr)
+                {
+                    return false;
+                }
+                proj->owner->releaseProjectile(lastmillis);
+                throw_(*proj);
+                return true;
+            }
+            return false;
+        }
+
+        /*
             Throw a projectile: update the trajectory of a tracking projectile based on the owner's position and orientation,
             or based on the provided parameters for non-local projectiles.
             Using an underscore in the name to avoid confusion with the "throw" keyword in C++.
@@ -576,12 +653,22 @@ namespace game
             proj.vel.mul(proj.speed);
             proj.offsetMillis = OFFSET_MILLIS;
             proj.resetinterp();
+
+            // Player-specific effects.
+            playsound(S_THROW, proj.owner);
+            sway.addevent(proj.owner, SwayEvent_Switch, 500, -15);
         }
 
         void destroy(ProjEnt& proj, const vec& position, const bool isLocal, const int attack)
         {
             if (isattackprojectile(proj.projectile) && validatk(proj.attack))
             {
+                // Release held projectile.
+                if (proj.isHeld())
+                {
+                    proj.owner->releaseProjectile(lastmillis);
+                }
+
                 // Explode projectile.
                 if (proj.flags & ProjFlag_Explosive)
                 {
@@ -591,7 +678,6 @@ namespace game
                         proj.attack = attack;
                     }
 
-                    // Explode projectile.
                     explode(proj, position, isLocal);
                 }
 
@@ -797,7 +883,7 @@ namespace game
                 {
                     const int elapsed = lastmillis - proj.millis;
                     const int fadeTime = projectileInfo.fade;
-                    if (proj.throwState == proj.ThrowState::Thrown && elapsed >= fadeTime + 50)
+                    if (proj.isThrown() && elapsed >= fadeTime + 50)
                     {
                         particle_flare(proj.lastPosition, position, 500, PART_TRAIL_STRAIGHT, 0x74BCF9, 0.4f);
                     }
@@ -885,9 +971,46 @@ namespace game
             }
         }
 
+        // Projectile has been grabbed and is now being dragged to the player.
+        void updateAttachingState(ProjEnt& proj)
+        {
+            if (!proj.isAttaching())
+            {
+                return;
+            }
+            const float progress = proj.getAttachProgress();
+
+            // Successfully attached, switch to "held" state.
+            if (progress >= 1.0f)
+            {
+
+                proj.throwState = proj.ThrowState::Held;
+                proj.trackType = TRACK_HELD;
+                return;
+            }
+
+            const float easedProgress = ease::outquad(progress);
+            const vec targetPos = getTrackingPosition(proj.owner, TRACK_HELD);
+            proj.o = vec(proj.lastPosition).lerp(targetPos, easedProgress);
+            const gameent* owner = proj.owner;
+            const float targetYaw = owner->yaw;
+            const float targetPitch = owner->pitch;
+            const float targetRoll = 0.0f;
+            proj.yaw = lerp360(proj.catchYaw, targetYaw, easedProgress);
+            proj.pitch = lerp360(proj.catchPitch, targetPitch, easedProgress);
+            proj.roll = lerp360(proj.catchRoll, targetRoll, easedProgress);
+        }
+
         static vec updatePosition(ProjEnt& proj, const int time)
         {
             vec position = proj.o;
+
+            // Use interpolation set later.
+            if (proj.isAttaching())
+            {
+                return position;
+            }
+
             if (proj.flags & ProjFlag_Linear)
             {
                 proj.offsetMillis = max(proj.offsetMillis - time, 0);
@@ -923,14 +1046,15 @@ namespace game
                 detectTargets(proj, position);
                 if (proj.state != CS_DEAD)
                 {
-					// Kill projectiles below world origin.
-					if (proj.o.z < 0)
-					{
-						proj.kill();
-					}
+                    // Kill projectiles below world origin.
+                    if (proj.o.z < 0)
+                    {
+                        proj.kill();
+                    }
 
                     checklifetime(proj, time);
                     checkMaterials(proj);
+                    updateAttachingState(proj);
                     if (proj.flags & ProjFlag_Linear)
                     {
                         if (proj.flags & ProjFlag_Impact && proj.dist < 4)
@@ -968,7 +1092,7 @@ namespace game
                     }
                     if (isattackprojectile(proj.projectile))
                     {
-                        if (proj.isLocal && proj.owner == self && proj.flags & ProjFlag_Throw && proj.throwState == proj.ThrowState::Throwing)
+                        if (proj.isLocal && proj.owner == self && proj.flags & ProjFlag_Throw && proj.isBeingThrown())
                         {
                             const int elapsed = lastmillis - proj.millis;
                             const int fadeTime = projs[proj.projectile].fade;
@@ -994,7 +1118,7 @@ namespace game
                 {
                     destroy(proj, position);
                 }
-                else
+                else if (!proj.isAttaching())
                 {
                     if (proj.hasBehavior(ProjFlag_Bounce))
                     {
@@ -1116,6 +1240,30 @@ namespace game
             }
         }
 
+        static vec manipulateModel(ProjEnt& proj)
+        {
+            vec position = proj.o;
+
+            // Use interpolation values set earlier.
+            if (proj.isAttaching())
+            {
+                return position;
+            }
+
+            if (proj.hasBehavior(ProjFlag_Track))
+            {
+                proj.yaw = proj.owner->yaw;
+                proj.pitch = proj.owner->pitch;
+                proj.roll = 0;
+                position = getTrackingPosition(proj.owner, proj.trackType);
+            }
+            else
+            {
+                position = proj.manipulateModel();
+            }
+            return position;
+        }
+
         void render()
         {
             for (int i = 0; i < Projectiles.length(); i++)
@@ -1125,7 +1273,7 @@ namespace game
                 {
                     continue;
                 }
-                const vec position = proj.manipulateModel();
+                vec position = manipulateModel(proj);
                 int cull = MDL_CULL_VFC | MDL_CULL_DIST | MDL_CULL_OCCLUDED;
                 float fade = 1.0f;
                 if (proj.lifetime >= 400)
