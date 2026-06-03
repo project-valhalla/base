@@ -2009,4 +2009,9 @@ namespace ease
         const float overshoot = 1.70158f;
         return 1.0f + (overshoot + 1) * pow(progress - 1.0f, 3.0f) + overshoot * pow(progress - 1.0f, 2.0f);
     }
+
+    static inline float outquad(float progress)
+    {
+        return 1.0f - (1.0f - progress) * (1.0f - progress);
+    }
 }
