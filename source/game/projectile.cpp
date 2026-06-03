@@ -755,7 +755,7 @@ namespace game
         {
             if (isattackprojectile(proj.projectile))
             {
-                if ((proj.lifetime -= time) < 0)
+                if (proj.lifetime > 0 && (proj.lifetime -= time) <= 0)
                 {
                     proj.kill();
                 }

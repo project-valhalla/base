@@ -352,11 +352,17 @@ struct ProjEnt : dynent
     void setLifeTime(const projectileinfo& context)
     {
         int lifeTime = context.lifeTime;
-        if (lifeTime == 0)
+
+        /*
+            Randomise junk's lifespan.
+            Avoid doing this for weapons, as predictability is crucial to gameplay.
+        */
+        if (flags & ProjFlag_Junk && lifeTime == 0)
         {
             const int randomLifeTime = 1000 + rnd(1000);
             lifeTime = randomLifeTime;
         }
+
         this->lifetime = lifeTime;
     }
 
