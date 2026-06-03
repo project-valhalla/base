@@ -923,6 +923,12 @@ namespace game
                 detectTargets(proj, position);
                 if (proj.state != CS_DEAD)
                 {
+					// Kill projectiles below world origin.
+					if (proj.o.z < 0)
+					{
+						proj.kill();
+					}
+
                     checklifetime(proj, time);
                     checkMaterials(proj);
                     if (proj.flags & ProjFlag_Linear)
