@@ -876,6 +876,15 @@ namespace game
             }
         }
 
+        void checkMaterials(ProjEnt& proj)
+        {
+            const int material = lookupmaterial(proj.o);
+            if ((material & MATF_VOLUME) == MAT_LAVA)
+            {
+                proj.kill();
+            }
+        }
+
         static vec updatePosition(ProjEnt& proj, const int time)
         {
             vec position = proj.o;
@@ -915,26 +924,44 @@ namespace game
                 if (proj.state != CS_DEAD)
                 {
                     checklifetime(proj, time);
-                    if ((lookupmaterial(proj.o) & MATF_VOLUME) == MAT_LAVA)
+                    checkMaterials(proj);
+                    if (proj.flags & ProjFlag_Linear)
                     {
-                        proj.kill();
-                    }
-                    else
-                    {
-                        if (proj.flags & ProjFlag_Linear)
+                        if (proj.flags & ProjFlag_Impact && proj.dist < 4)
                         {
-                            if (proj.flags & ProjFlag_Impact && proj.dist < 4)
+                            if (proj.o != proj.to) // If original target was moving, re-evaluate endpoint.
                             {
-                                if (proj.o != proj.to) // If original target was moving, re-evaluate endpoint.
+                                if (raycubepos(proj.o, proj.vel, proj.to, 0, RAY_CLIPMAT | RAY_ALPHAPOLY) >= 4)
                                 {
-                                    if (raycubepos(proj.o, proj.vel, proj.to, 0, RAY_CLIPMAT | RAY_ALPHAPOLY) >= 4)
-                                    {
-                                        continue;
-                                    }
+                                    continue;
                                 }
+                            }
+                            proj.kill();
+                        }
+                    }
+                    if (proj.hasBehavior(ProjFlag_Track))
+                    {
+                        const vec direction = vec(position).sub(oldPosition).normalize();
+                        const float range = proj.vel.magnitude() * (time / 1000.0f);
+                        vec hitPosition = vec(position);
+                        const float ray = raycubepos(oldPosition, direction, hitPosition, range, RAY_CLIPMAT | RAY_ALPHAPOLY);
+                        if (ray < range)
+                        {
+                            // Geometry collision.
+                            if (proj.lastImpact == 0)
+                            {
+                                // One impact per lifetime.
+                                applyImpactEffects(proj.attack, proj.owner, proj.o, proj.o);
+                                proj.lastImpact = lastmillis;
+                            }
+                            if (proj.flags & ProjFlag_Impact)
+                            {
                                 proj.kill();
                             }
                         }
+                    }
+                    if (isattackprojectile(proj.projectile))
+                    {
                         if (proj.isLocal && proj.owner == self && proj.flags & ProjFlag_Throw && proj.throwState == proj.ThrowState::Throwing)
                         {
                             const int elapsed = lastmillis - proj.millis;
@@ -944,37 +971,13 @@ namespace game
                                 throw_(proj);
                             }
                         }
-                        if (proj.hasBehavior(ProjFlag_Track))
+                        if (proj.hasBehavior(ProjFlag_Bounce))
                         {
-                            const vec direction = vec(position).sub(oldPosition).normalize();
-                            const float range = proj.vel.magnitude() * (time / 1000.0f);
-                            vec hitPosition = vec(position);
-                            const float ray = raycubepos(oldPosition, direction, hitPosition, range, RAY_CLIPMAT | RAY_ALPHAPOLY);
-                            if (ray < range)
+                            const bool isBouncing = physics::isbouncing(proj, proj.elasticity, 0.5f, proj.gravity);
+                            const bool hasBounced = projs[proj.projectile].maxBounces > 0 && proj.bounces >= projs[proj.projectile].maxBounces;
+                            if (!isBouncing || hasBounced)
                             {
-                                // Geometry collision.
-                                if (proj.lastImpact == 0)
-                                {
-                                    // One impact per lifetime.
-                                    applyImpactEffects(proj.attack, proj.owner, proj.o, proj.o);
-                                    proj.lastImpact = lastmillis;
-                                }
-                                if (proj.flags & ProjFlag_Impact)
-                                {
-                                    proj.kill();
-                                }
-                            }
-                        }
-                        if (isattackprojectile(proj.projectile))
-                        {
-                            if (proj.hasBehavior(ProjFlag_Bounce))
-                            {
-                                const bool isBouncing = physics::isbouncing(proj, proj.elasticity, 0.5f, proj.gravity);
-                                const bool hasBounced = projs[proj.projectile].maxBounces > 0 && proj.bounces >= projs[proj.projectile].maxBounces;
-                                if (!isBouncing || hasBounced)
-                                {
-                                    proj.kill();
-                                }
+                                proj.kill();
                             }
                         }
                     }
