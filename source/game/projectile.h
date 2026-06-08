@@ -430,7 +430,7 @@ struct ProjEnt : dynent
 
     void kill(const bool isDestroyed = false)
     {
-        if (!isLocal)
+        if (!isLocal || state != CS_ALIVE)
         {
             return;
         }
