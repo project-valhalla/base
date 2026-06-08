@@ -1084,7 +1084,7 @@ namespace game
                                 applyImpactEffects(proj.attack, proj.owner, proj.o, proj.o);
                                 proj.lastImpact = lastmillis;
                             }
-                            if (proj.flags & ProjFlag_Impact)
+                            if (!proj.isHeld() && proj.flags & ProjFlag_Impact)
                             {
                                 proj.kill();
                             }

@@ -475,21 +475,6 @@ struct ProjEnt : dynent
         return (flags & behavior);
     }
 
-    /*
-        Check if target has been already hit by projectile (duplicate direct hits).
-        If the target hasn't already been hit by this projectile, keep track.
-        The target entity can be player, NPC and projectile actors.
-    */
-    bool registerTarget(dynent* target)
-    {
-        if (targets.find(target) < 0)
-        {
-            targets.add(target);
-            return true;
-        }
-        return false;
-    }
-
     bool isAttaching() const
     {
         return throwState == ThrowState::Attaching;
@@ -508,6 +493,21 @@ struct ProjEnt : dynent
     bool isThrown() const
     {
         return throwState == ThrowState::Thrown;
+    }
+
+    /*
+        Check if target has been already hit by projectile (duplicate direct hits).
+        If the target hasn't already been hit by this projectile, keep track.
+        The target entity can be player, NPC and projectile actors.
+    */
+    bool registerTarget(dynent* target)
+    {
+        if (targets.find(target) < 0)
+        {
+            targets.add(target);
+            return true;
+        }
+        return false;
     }
 
     float getAttachProgress() const
