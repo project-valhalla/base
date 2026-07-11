@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=VALHALLA
+Comment=First-person shooter set within a sci-fi reimagining of Norse mythology
+Icon=net.valhalla_fps.VALHALLA
+Exec=valhalla
+Categories=Game;ActionGame;Shooter;
+Keywords=fps;action;multiplayer;play;arena;mapeditor;
