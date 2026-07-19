@@ -473,11 +473,20 @@ namespace ai
 
     int isgoodammo(int gun) { return gun >= GUN_SCATTER && gun <= GUN_GRENADE; }
 
-    bool hasgoodammo(gameent *d)
+    static bool hasGoodAmmo(gameent *bot)
     {
-        if(m_tactics(mutators) || m_voosh(mutators)) return true;
-        static const int goodguns[] = { GUN_SCATTER, GUN_PULSE, GUN_ROCKET, GUN_RAIL, GUN_GRENADE };
-        loopi(sizeof(goodguns)/sizeof(goodguns[0])) if(d->hasammo(goodguns[0])) return true;
+        if (m_insta(mutators) || m_tactics(mutators) || m_voosh(mutators) || m_noitems(mutators))
+        {
+            return true;
+        }
+        static const int goodGuns[] = { GUN_SCATTER, GUN_PULSE, GUN_ROCKET, GUN_RAIL, GUN_GRENADE };
+        loopi(sizeof(goodGuns) / sizeof(goodGuns[0]))
+        {
+            if (bot->hasammo(goodGuns[i]))
+            {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -492,7 +501,7 @@ namespace ai
             n.node = e->lastnode;
             n.target = e->clientnum;
             n.targtype = AI_T_PLAYER;
-            n.score = e->o.squaredist(d->o)/(hasgoodammo(d) ? 1e8f : (force ? 1e4f : 1e2f));
+            n.score = e->o.squaredist(d->o)/(hasGoodAmmo(d) ? 1e8f : (force ? 1e4f : 1e2f));
         }
     }
 
@@ -528,7 +537,7 @@ namespace ai
                     int gun = e.type - I_AMMO_SG + GUN_SCATTER;
                     // go get a weapon upgrade
                     if(gun == d->ai->weappref) score = 1e8f;
-                    else if(isgoodammo(gun)) score = hasgoodammo(d) ? 1e2f : 1e4f;
+                    else if(isgoodammo(gun)) score = hasGoodAmmo(d) ? 1e2f : 1e4f;
                 }
                 break;
             }
@@ -589,7 +598,7 @@ namespace ai
         interests.setsize(0);
         if(!m_noitems(mutators))
         {
-            if((!hasgoodammo(d) || d->health < min(d->skill - 15, 75)))
+            if((!hasGoodAmmo(d) || d->health < min(d->skill - 15, 75)))
             {
                 items(d, b, interests);
             }
@@ -719,7 +728,7 @@ namespace ai
 
                     case I_DDAMAGE: case I_HASTE: case I_ARMOR: case I_INFINITEAMMO:
                     case I_AGILITY: case I_INVULNERABILITY:
-                        wantsitem = hasgoodammo(d);
+                        wantsitem = hasGoodAmmo(d);
                         break;
 
                     default:
