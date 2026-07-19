@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>net.valhalla_fps.VALHALLA</id>
+  <launchable type="desktop-id">net.valhalla_fps.VALHALLA.desktop</launchable>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>Zlib</project_license>
+  <name>VALHALLA</name>
+  <developer id="net.valhalla">
+    <name>VALHALLA Team</name>
+  </developer>
+  <branding>
+    <color type="primary" scheme_preference="light">#12ae0f</color>
+    <color type="primary" scheme_preference="dark">#0b5d09</color>
+  </branding>
+  <summary>Arena shooter with a touch of Norse mythology</summary>
+  <description>
+    <p>
+      VALHALLA is an open-source FPS that combines modern casual gameplay with a touch of old-school charm, set within a sci-fi reimagining of Norse mythology.
+    </p>
+    <ul>
+      <li>Fast paced and snappy gameplay: hop into the Valhalla Corporation's testing arenas - for science!</li>
+      <li>Blow the hell out of the opposition with 7 main weapons, complete with alternative firing modes</li>
+      <li>Get 6 nasty power-ups to unleash against your unsuspecting opponents</li>
+      <li>Test your reflexes on various situations with 9 gamemodes and 9 mutators, offering both competitive and casual games</li>
+    </ul>
+  </description>
+  <url type="homepage">https://www.valhalla-fps.net</url>
+  <url type="bugtracker">https://github.com/project-valhalla/main/issues</url>
+  <url type="vcs-browser">https://github.com/project-valhalla/main</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/project-valhalla/base/main/source/install/linux/screenshots/1.png</image>
+      <caption>Gameplay 1</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/project-valhalla/base/main/source/install/linux/screenshots/2.png</image>
+      <caption>Gameplay 2</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/project-valhalla/base/main/source/install/linux/screenshots/3.png</image>
+      <caption>Gameplay 3</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-fantasy">moderate</content_attribute>
+    <content_attribute id="violence-bloodshed">mild</content_attribute>
+    <content_attribute id="social-chat">intense</content_attribute>
+  </content_rating>
+  <releases>
+    <release version="1.0.0-beta.2" date="2025-05-01"/>
+  </releases>
+</component>
