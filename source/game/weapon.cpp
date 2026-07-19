@@ -1494,7 +1494,7 @@ namespace game
         };
         const size_t relatedSize = sizeof(related) / sizeof(related[0]);
         int weapon = GUN_INVALID;
-        for (size_t i = 0; i < relatedSize; ++i)
+        for (size_t i = 0; i < relatedSize; i++)
         {
             if (related[i].from == self->gunselect)
             {
