@@ -1492,21 +1492,20 @@ namespace game
             { GUN_ROCKET,  GUN_PULSE   },
             { GUN_RAIL,    GUN_SCATTER }
         };
-        const size_t relatedSize = sizeof(related) / sizeof(related[0]);
-        int weapon = GUN_INVALID;
-        for (size_t i = 0; i < relatedSize; i++)
+        int nextWeapon = GUN_INVALID;
+        for (const auto& weapon : related)
         {
-            if (related[i].from == self->gunselect)
+            if (weapon.from == self->gunselect)
             {
-                weapon = related[i].to;
+                nextWeapon = weapon.to;
                 break;
             }
         }
-        if (!validgun(weapon) || weapon == self->gunselect)
+        if (!validgun(nextWeapon) || nextWeapon == self->gunselect)
         {
             return;
         }
-        gunselect(weapon, self);
+        gunselect(nextWeapon, self);
     }
     ICOMMAND(relatedweapon, "", (), selectRelatedWeapon());
 
