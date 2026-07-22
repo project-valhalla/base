@@ -479,11 +479,10 @@ namespace ai
         {
             return true;
         }
-        static const int goodGuns[] = { GUN_SCATTER, GUN_PULSE, GUN_ROCKET, GUN_RAIL, GUN_GRENADE };
-        const size_t goodGunsSize = sizeof(goodGuns) / sizeof(goodGuns[0]);
-        for (size_t i = 0; i < goodGunsSize; i++)
+        static const int goodWeapons[] = { GUN_SCATTER, GUN_PULSE, GUN_ROCKET, GUN_RAIL, GUN_GRENADE };
+        for (int weapon : goodWeapons)
         {
-            if (bot->hasammo(goodGuns[i]))
+            if (bot->hasammo(weapon))
             {
                 return true;
             }
