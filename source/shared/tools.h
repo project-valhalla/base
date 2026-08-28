@@ -3,6 +3,8 @@
 #ifndef _TOOLS_H
 #define _TOOLS_H
 
+#include <new> // for the placement forms of operator new/delete
+
 #ifdef NULL
 #undef NULL
 #endif
@@ -36,10 +38,6 @@ typedef unsigned long long int ullong;
 
 void *operator new(size_t, bool);
 void *operator new[](size_t, bool);
-inline void *operator new(size_t, void *p) { return p; }
-inline void *operator new[](size_t, void *p) { return p; }
-inline void operator delete(void *, void *) {}
-inline void operator delete[](void *, void *) {}
 
 #ifdef swap
 #undef swap
